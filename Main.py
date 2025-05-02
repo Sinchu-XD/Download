@@ -6,7 +6,8 @@ import re
 import asyncio
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 API_ID = 6067591
 API_HASH = "94e17044c2393f43fda31d3afe77b26b"
@@ -48,6 +49,5 @@ async def start(_, message):
     await message.reply_text("I'm Live")
 
 if __name__ == "__main__":
-    logging.info("Bot Ho Gaya Start")
     app.run()
-    logging.info("Stopping Bot! GoodBye")
+    logger.info("Stopping Bot! GoodBye")
