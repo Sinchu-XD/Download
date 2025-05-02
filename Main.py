@@ -32,7 +32,7 @@ async def download_media(message: Message, url: str):
             info = ydl.extract_info(url, download=False)
             file_path = ydl.prepare_filename(info)
 
-        await message.reply(file_path, caption=f"📥 Downloaded from:\n{url}")
+        await message.reply_video(file_path, caption=f"📥 Downloaded from:\n{url}")
         await msg.delete()
         os.remove(file_path)
 
