@@ -29,10 +29,10 @@ async def download_media(message: Message, url: str):
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+            info = ydl.extract_info(url, download=False)
             file_path = ydl.prepare_filename(info)
 
-        await message.reply_document(file_path, caption=f"📥 Downloaded from:\n{url}")
+        await message.reply(file_path, caption=f"📥 Downloaded from:\n{url}")
         await msg.delete()
         os.remove(file_path)
 
