@@ -4,6 +4,9 @@ import yt_dlp
 import os
 import re
 import asyncio
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 API_ID = 6067591
 API_HASH = "94e17044c2393f43fda31d3afe77b26b"
@@ -48,6 +51,8 @@ async def start(_, message):
 async def main():
     print("Bot Ho Gaya Start")
     await app.start()
+    logging.info("Account Started Successfully")
 
 if __name__ == "__main__":
     loop.run_until_complete(main())
+    logging.info("Stopping Music Bot! GoodBye")
