@@ -14,8 +14,6 @@ BOT_TOKEN = "7902638287:AAGyCNE-ndYeZ8t9n2G8P0ATzJp5eJi0uhY"
 
 app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-loop = asyncio.get_event_loop()
-
 SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
 
 async def download_media(message: Message, url: str):
@@ -48,11 +46,7 @@ async def handle_download(_, message: Message):
 async def start(_, message):
     await message.reply_text("I'm Live")
 
-async def main():
-    print("Bot Ho Gaya Start")
-    await app.start()
-    logging.info("Account Started Successfully")
-
 if __name__ == "__main__":
-    loop.run_until_complete(main())
-    logging.info("Stopping Music Bot! GoodBye")
+    logging.info("Bot Ho Gaya Start")
+    app.run()
+    logging.info("Stopping Bot! GoodBye")
