@@ -6,7 +6,7 @@ import re
 
 API_ID = 6067591
 API_HASH = "94e17044c2393f43fda31d3afe77b26b"
-BOT_TOKEN = "7875353720:AAG_Hg3W6P5vvR7WP1PzELqS-9exTLLQ3MU"
+BOT_TOKEN = "7902638287:AAGyCNE-ndYeZ8t9n2G8P0ATzJp5eJi0uhY"
 
 app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -38,4 +38,8 @@ async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
 
+@app.on_message(filters.command("start"))
+async def start(_, message):
+    await message.reply_text("Im Live")
+    
 app.run()
