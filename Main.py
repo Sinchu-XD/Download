@@ -3,6 +3,7 @@ from pyrogram.types import Message
 import yt_dlp
 import os
 import re
+import asyncio
 
 API_ID = 6067591
 API_HASH = "94e17044c2393f43fda31d3afe77b26b"
@@ -40,6 +41,12 @@ async def handle_download(_, message: Message):
 
 @app.on_message(filters.command("start"))
 async def start(_, message):
-    await message.reply_text("Im Live")
+    await message.reply_text("I'm Live")
+
+async def main():
+    print("Bot Ho Gaya Start")
+    await app.start()
     
-app.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
