@@ -24,6 +24,7 @@ async def download_media(message: Message, url: str):
             'outtmpl': 'downloads/%(title)s.%(ext)s',
             'format': 'bestvideo+bestaudio/best',
             'quiet': True,
+            'cookiefile': "cookies/cookies.txt",
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
