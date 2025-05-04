@@ -23,7 +23,8 @@ async def download_media(message: Message, url: str):
     try:
         ydl_opts = {
             'outtmpl': 'downloads/%(title)s.%(ext)s',
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'merge_output_format': 'mp4',
             'quiet': True,
             'cookiefile': "cookies/cookies.txt",
         }
