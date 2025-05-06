@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from pyrogram.enums import ChatMembersFilter
 from Message import get_random_message
 import yt_dlp
 import os
@@ -63,7 +64,11 @@ async def tag_all(_, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    if not await is_admin(_, chat_id, user_id):
+    admins = []
+    async for admin in app.get_chat_members(chat_id, filter=ChatMembersFilter.ADMINISTRATORS):
+        admins.append(admin.user.id)
+
+    if message.from_user.id in admins:
         return await message.reply("🚫 Only admins can use /tagall")
 
     if tag_processes.get(chat_id):
@@ -98,7 +103,11 @@ async def cancel_tag(_, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    if not await is_admin(_, chat_id, user_id):
+    admins = []
+    async for admin in app.get_chat_members(chat_id, filter=ChatMembersFilter.ADMINISTRATORS):
+        admins.append(admin.user.id)
+
+    if message.from_user.id in SUDOERS or message.from_user.id in admins:
         return await message.reply("🚫 Only admins can use /cancel")
 
     if tag_processes.get(chat_id):
