@@ -74,7 +74,8 @@ async def tag_all(_, message: Message):
             return
 
         user = member.user
-        if user.is_bot:
+        
+        if user.is_bot or user.is_deleted:
             continue
 
         mention = f"@{user.username}" if user.username else f"[{user.first_name}](tg://user?id={user.id})"
@@ -88,7 +89,6 @@ async def tag_all(_, message: Message):
 
     await message.reply("✅ Finished tagging everyone.")
     tag_processes[chat_id] = False
-
 @app.on_message(filters.command("cancel") & filters.group)
 async def cancel_tag(_, message: Message):
     chat_id = message.chat.id
