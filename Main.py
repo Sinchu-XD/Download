@@ -1,7 +1,10 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from Message import get_random_message
 import yt_dlp
 import os
+from asyncio import sleep
+from typing import Dict
 import re
 import asyncio
 import logging
@@ -15,6 +18,7 @@ BOT_TOKEN = "7902638287:AAGyCNE-ndYeZ8t9n2G8P0ATzJp5eJi0uhY"
 
 app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
+tag_processes: Dict[int, bool] = {}
 SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
 
 async def download_media(message: Message, url: str):
@@ -44,6 +48,62 @@ async def download_media(message: Message, url: str):
 async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
+
+
+@app.on_message(filters.command("tagall") & filters.group)
+async def tag_all(_, message: Message):
+    if not message.from_user:
+        return
+
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    member = await _.get_chat_member(chat_id, user_id)
+    if member.status not in ("administrator", "creator"):
+        return await message.reply("🚫 Only admins can use /tagall")
+
+    if tag_processes.get(chat_id):
+        return await message.reply("⚠️ Tagging is already in progress. Use /cancel to stop.")
+
+    tag_processes[chat_id] = True
+    await message.reply("🔄 Tagging started. Sending tags one by one...")
+
+    async for member in _.get_chat_members(chat_id):
+        if not tag_processes.get(chat_id):
+            await message.reply("❌ Tagging cancelled.")
+            return
+
+        user = member.user
+        if user.is_bot:
+            continue
+
+        mention = f"@{user.username}" if user.username else f"[{user.first_name}](tg://user?id={user.id})"
+        tag_line = f"{get_random_message()}\n{mention}"
+
+        try:
+            await _.send_message(chat_id, tag_line, disable_web_page_preview=True)
+            await sleep(1.5)
+        except Exception:
+            continue
+
+    await message.reply("✅ Finished tagging everyone.")
+    tag_processes[chat_id] = False
+
+@app.on_message(filters.command("cancel") & filters.group)
+async def cancel_tag(_, message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    member = await _.get_chat_member(chat_id, user_id)
+    if member.status not in ("administrator", "creator"):
+        return await message.reply("🚫 Only admins can use /cancel")
+
+    if tag_processes.get(chat_id):
+        tag_processes[chat_id] = False
+        await message.reply("🛑 Tagging has been cancelled.")
+    else:
+        await message.reply("ℹ️ No tagging process is currently running.")
+
 
 @app.on_message(filters.command("start"))
 async def start(_, message):
