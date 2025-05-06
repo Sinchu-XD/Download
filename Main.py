@@ -68,7 +68,7 @@ async def tag_all(_, message: Message):
     async for admin in app.get_chat_members(chat_id, filter=ChatMembersFilter.ADMINISTRATORS):
         admins.append(admin.user.id)
 
-    if message.from_user.id in admins:
+    if message.from_user.id not in admins:
         return await message.reply("🚫 Only admins can use /tagall")
 
     if tag_processes.get(chat_id):
@@ -107,7 +107,7 @@ async def cancel_tag(_, message: Message):
     async for admin in app.get_chat_members(chat_id, filter=ChatMembersFilter.ADMINISTRATORS):
         admins.append(admin.user.id)
 
-    if message.from_user.id in admins:
+    if message.from_user.id not in admins:
         return await message.reply("🚫 Only admins can use /cancel")
 
     if tag_processes.get(chat_id):
