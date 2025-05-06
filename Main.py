@@ -21,6 +21,11 @@ app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_toke
 tag_processes: Dict[int, bool] = {}
 SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
 
+async def is_admin(client, chat_id, user_id):
+    member = await client.get_chat_member(chat_id, user_id)
+    return member.status in ("administrator", "creator")
+
+
 async def download_media(message: Message, url: str):
     msg = await message.reply("🔍 Fetching media, please wait...")
 
@@ -58,8 +63,7 @@ async def tag_all(_, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    member = await _.get_chat_member(chat_id, user_id)
-    if member.status not in ("administrator", "creator"):
+    if not await is_admin(_, chat_id, user_id):
         return await message.reply("🚫 Only admins can use /tagall")
 
     if tag_processes.get(chat_id):
@@ -94,8 +98,7 @@ async def cancel_tag(_, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    member = await _.get_chat_member(chat_id, user_id)
-    if member.status not in ("administrator", "creator"):
+    if not await is_admin(_, chat_id, user_id):
         return await message.reply("🚫 Only admins can use /cancel")
 
     if tag_processes.get(chat_id):
