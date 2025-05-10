@@ -4,8 +4,11 @@ import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 
 def get_terabox_video_url(share_link: str):
+    chrome_path = "/usr/bin/google-chrome"  # Change this if needed
+
     options = uc.ChromeOptions()
-    options.add_argument("--headless")  # Remove this if you want to see the browser
+    options.binary_location = chrome_path
+    options.add_argument("--headless")  # Comment this if you want GUI
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--window-size=1280,800")
@@ -37,6 +40,7 @@ def get_terabox_video_url(share_link: str):
     except Exception as e:
         browser.quit()
         raise Exception(f"❌ Failed: {str(e)}")
+
 
 if __name__ == "__main__":
     link = "https://teraboxlink.com/s/1_BkRld5NS41YeIA2GD29Qw"
