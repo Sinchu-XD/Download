@@ -58,7 +58,7 @@ async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
 
-@app.on_message(filters.private & filters.group & filters.regex(TERABOX_URL_PATTERN)
+@app.on_message(filters.private & filters.group & filters.regex(TERABOX_URL_PATTERN))
 async def handle_message(client, message):
     url = message.text.strip()
 
