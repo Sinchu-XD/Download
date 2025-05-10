@@ -1,80 +1,50 @@
 import aiohttp
+from bs4 import BeautifulSoup
+import re
 import os
-import asyncio
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
-async def download_file(url: str, filename: str, max_retries: int = 3) -> str:
-    path = f"downloads/{filename}"
-    os.makedirs("downloads", exist_ok=True)
-
-    for attempt in range(max_retries):
-        try:
-            async with aiohttp.ClientSession(headers=HEADERS) as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=180)) as resp:
-                    if resp.status != 200:
-                        raise Exception(f"❌ HTTP {resp.status}")
-
-                    total = int(resp.headers.get("Content-Length", 0))
-                    downloaded = 0
-                    last_percent = 0
-
-                    with open(path, "wb") as f:
-                        async for chunk in resp.content.iter_chunked(1024 * 1024):  # 1MB
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            downloaded += len(chunk)
-
-                            if total > 0:
-                                percent = int((downloaded / total) * 100)
-                                if percent - last_percent >= 10:
-                                    print(f"⬇️ Downloaded {percent}%...")
-                                    last_percent = percent
-
-            return path
-
-        except Exception as e:
-            print(f"⚠️ Attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2)
-            else:
-                raise Exception(f"❌ Download failed after {max_retries} attempts: {e}")
-
-from playwright.async_api import async_playwright
-import asyncio
 
 async def get_terabox_video_url(share_link: str):
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-        page = await browser.new_page()
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        async with session.get(share_link, timeout=60) as response:
+            if response.status != 200:
+                raise Exception(f"Failed to load page: HTTP {response.status}")
 
-        try:
-            print(f"🔗 Opening {share_link}")
-            await page.goto(share_link, timeout=60000)
+            html = await response.text()
+            soup = BeautifulSoup(html, "html.parser")
 
-            # Wait until network is idle to make sure JS has rendered everything
-            await page.wait_for_load_state("networkidle", timeout=20000)
+            # Try to find file name
+            filename_tag = soup.find("meta", {"name": "description"})
+            filename = filename_tag["content"][:20] + ".mp4" if filename_tag else "video.mp4"
 
-            # Attempt to get video element
-            await page.wait_for_selector("video", timeout=15000)
-            video_element = await page.query_selector("video")
+            # Try to find video URL in JS variables
+            match = re.search(r'"video_url":"(https:[^"]+)"', html)
+            if not match:
+                raise Exception("❌ Video URL not found in page content")
 
-            if not video_element:
-                raise Exception("❌ No video element found on page")
-
-            video_url = await video_element.get_attribute("src")
-            if not video_url or not video_url.startswith("http"):
-                raise Exception("❌ Invalid or empty video URL")
-
-            filename = share_link.split("/")[-1][:8] + ".mp4"
+            video_url = match.group(1).replace("\\u002F", "/")
 
             return video_url, filename
 
-        except Exception as e:
-            print(f"❌ Playwright Error: {e}")
-            raise Exception(f"TeraBox extraction failed: {e}")
-        finally:
-            await browser.close()
+
+async def download_file(url: str, filename: str) -> str:
+    path = f"downloads/{filename}"
+    os.makedirs("downloads", exist_ok=True)
+
+    async with aiohttp.ClientSession(headers=HEADERS) as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise Exception(f"Download failed: HTTP {resp.status}")
+
+            with open(path, "wb") as f:
+                while True:
+                    chunk = await resp.content.read(1024 * 1024)  # 1MB
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
+    return path
