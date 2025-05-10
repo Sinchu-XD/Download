@@ -1,50 +1,49 @@
-import aiohttp
-from bs4 import BeautifulSoup
-import re
 import os
+import time
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
+def get_terabox_video_url(share_link: str):
+    options = uc.ChromeOptions()
+    options.add_argument("--headless")  # Remove this if you want to see the browser
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--window-size=1280,800")
 
+    browser = uc.Chrome(options=options)
+    browser.get(share_link)
 
-async def get_terabox_video_url(share_link: str):
-    async with aiohttp.ClientSession(headers=HEADERS) as session:
-        async with session.get(share_link, timeout=60) as response:
-            if response.status != 200:
-                raise Exception(f"Failed to load page: HTTP {response.status}")
+    try:
+        # Wait up to 15 seconds for video to load
+        for _ in range(30):
+            video_elements = browser.find_elements(By.TAG_NAME, "video")
+            if video_elements:
+                break
+            time.sleep(0.5)
 
-            html = await response.text()
-            soup = BeautifulSoup(html, "html.parser")
+        if not video_elements:
+            browser.quit()
+            raise Exception("❌ Video element not found on page.")
 
-            # Try to find file name
-            filename_tag = soup.find("meta", {"name": "description"})
-            filename = filename_tag["content"][:20] + ".mp4" if filename_tag else "video.mp4"
+        video_url = video_elements[0].get_attribute("src")
+        if not video_url:
+            browser.quit()
+            raise Exception("❌ Video URL not found in element.")
 
-            # Try to find video URL in JS variables
-            match = re.search(r'"video_url":"(https:[^"]+)"', html)
-            if not match:
-                raise Exception("❌ Video URL not found in page content")
+        filename = share_link.split("/")[-1][:8] + ".mp4"
+        browser.quit()
+        return video_url, filename
 
-            video_url = match.group(1).replace("\\u002F", "/")
+    except Exception as e:
+        browser.quit()
+        raise Exception(f"❌ Failed: {str(e)}")
 
-            return video_url, filename
-
-
-async def download_file(url: str, filename: str) -> str:
-    path = f"downloads/{filename}"
-    os.makedirs("downloads", exist_ok=True)
-
-    async with aiohttp.ClientSession(headers=HEADERS) as session:
-        async with session.get(url) as resp:
-            if resp.status != 200:
-                raise Exception(f"Download failed: HTTP {resp.status}")
-
-            with open(path, "wb") as f:
-                while True:
-                    chunk = await resp.content.read(1024 * 1024)  # 1MB
-                    if not chunk:
-                        break
-                    f.write(chunk)
-
-    return path
+if __name__ == "__main__":
+    link = "https://teraboxlink.com/s/1_BkRld5NS41YeIA2GD29Qw"
+    try:
+        video_url, filename = get_terabox_video_url(link)
+        print("✅ Video URL:", video_url)
+        print("📄 Filename:", filename)
+    except Exception as e:
+        print(str(e))
+        
