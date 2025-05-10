@@ -69,6 +69,7 @@ async def handle_message(client, message):
     msg = await message.reply("🔍 Extracting video download link...")
 
     try:
+        logger.info(f"Extracting video link for: {url}")
         video_url, filename = await get_terabox_video_url(url)
         await msg.edit_text(f"📥 Downloading `{filename}` ...")
 
@@ -79,6 +80,7 @@ async def handle_message(client, message):
         os.remove(file_path)
 
     except Exception as e:
+        logger.error(f"Error during TeraBox download: {str(e)}")
         await msg.edit_text(f"❌ Failed: {str(e)}")
 
 
@@ -103,7 +105,7 @@ async def tag_all(_, message: Message):
     tag_processes[chat_id] = True
     await message.reply("🔄 Tagging started. Sending tags one by one...")
 
-    async for member in _.get_chat_members(chat_id):
+    async for member in app.get_chat_members(chat_id):
         if not tag_processes.get(chat_id):
             await message.reply("❌ Tagging cancelled.")
             return
@@ -117,13 +119,14 @@ async def tag_all(_, message: Message):
         tag_line = f"{get_random_message()}\n{mention}"
 
         try:
-            await _.send_message(chat_id, tag_line, disable_web_page_preview=True)
+            await app.send_message(chat_id, tag_line, disable_web_page_preview=True)
             await sleep(1.5)
         except Exception:
             continue
 
     await message.reply("✅ Finished tagging everyone.")
     tag_processes[chat_id] = False
+
 @app.on_message(filters.command("cancel") & filters.group)
 async def cancel_tag(_, message: Message):
     chat_id = message.chat.id
@@ -149,4 +152,5 @@ async def start(_, message):
 
 if __name__ == "__main__":
     app.run()
-    logger.info("Stopping Bot! GoodBye")
+    logger.info("Stopping Bot! Goodbye")
+    
