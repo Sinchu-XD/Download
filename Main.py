@@ -23,7 +23,7 @@ app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_toke
 
 tag_processes: Dict[int, bool] = {}
 SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
-SOCIAL_URL = 
+TERABOX_URL_PATTERN = r"(https?:\/\/(?:www\.)?terabox\.com\/[\w\/]+)"
 
 async def is_admin(client, chat_id, user_id):
     member = await client.get_chat_member(chat_id, user_id)
@@ -58,7 +58,7 @@ async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
 
-@app.on_message(filters.private & filters.group & filters.regex(SOCIAL_URL)
+@app.on_message(filters.private & filters.group & filters.regex(TERABOX_URL_PATTERN)
 async def handle_message(client, message):
     url = message.text.strip()
 
