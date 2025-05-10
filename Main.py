@@ -21,6 +21,7 @@ app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_toke
 
 tag_processes: Dict[int, bool] = {}
 SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
+SOCIAL_URL = 
 
 async def is_admin(client, chat_id, user_id):
     member = await client.get_chat_member(chat_id, user_id)
@@ -54,6 +55,29 @@ async def download_media(message: Message, url: str):
 async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
+
+@app.on_message(filters.private & filters.group & filters.regex(SOCIAL_URL)
+async def handle_message(client, message):
+    url = message.text.strip()
+
+    if not url.startswith("http"):
+        await message.reply("❌ Please send a valid TeraBox link.")
+        return
+
+    msg = await message.reply("🔍 Extracting video download link...")
+
+    try:
+        video_url, filename = await get_terabox_video_url(url)
+        await msg.edit_text(f"📥 Downloading `{filename}` ...")
+
+        file_path = await download_file(video_url, filename)
+        await msg.edit_text("📤 Uploading to Telegram...")
+
+        await message.reply_video(video=file_path, caption=f"🎬 `{filename}`")
+        os.remove(file_path)
+
+    except Exception as e:
+        await msg.edit_text(f"❌ Failed: {str(e)}")
 
 
 @app.on_message(filters.command("tagall") & filters.group)
