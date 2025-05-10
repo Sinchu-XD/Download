@@ -9,7 +9,7 @@ from typing import Dict
 import re
 import asyncio
 import logging
-from Terabox import get_terabox_video_url, download_file
+from Terabox import get_terabox_video_url
 
 
 logging.basicConfig(level=logging.INFO)
