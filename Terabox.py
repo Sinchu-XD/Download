@@ -48,34 +48,33 @@ import asyncio
 
 async def get_terabox_video_url(share_link: str):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        page = await context.new_page()
-        
-        await page.goto(share_link, timeout=60000)
-        await page.wait_for_load_state("networkidle")
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+        page = await browser.new_page()
 
-        # Wait and retry for the video element
         try:
+            print(f"🔗 Opening {share_link}")
+            await page.goto(share_link, timeout=60000)
+
+            # Wait until network is idle to make sure JS has rendered everything
+            await page.wait_for_load_state("networkidle", timeout=20000)
+
+            # Attempt to get video element
             await page.wait_for_selector("video", timeout=15000)
-        except:
+            video_element = await page.query_selector("video")
+
+            if not video_element:
+                raise Exception("❌ No video element found on page")
+
+            video_url = await video_element.get_attribute("src")
+            if not video_url or not video_url.startswith("http"):
+                raise Exception("❌ Invalid or empty video URL")
+
+            filename = share_link.split("/")[-1][:8] + ".mp4"
+
+            return video_url, filename
+
+        except Exception as e:
+            print(f"❌ Playwright Error: {e}")
+            raise Exception(f"TeraBox extraction failed: {e}")
+        finally:
             await browser.close()
-            raise Exception("❌ Video element not found on TeraBox page.")
-
-        # Try to get video src via JS in case <video src=""> is empty
-        video_url = await page.evaluate("""
-            () => {
-                const video = document.querySelector('video');
-                return video ? video.src || video.getAttribute('src') : null;
-            }
-        """)
-
-        if not video_url:
-            await browser.close()
-            raise Exception("❌ Unable to extract video URL.")
-
-        filename = share_link.split("/")[-1][:8] + ".mp4"
-        await browser.close()
-
-        return video_url, filename
-        
