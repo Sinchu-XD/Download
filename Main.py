@@ -23,7 +23,7 @@ app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_toke
 
 tag_processes: Dict[int, bool] = {}
 SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
-TERABOX_URL_PATTERN = r"(https?:\/\/(?:www\.)?terabox\.com\/[\w\/]+)"
+TERABOX_URL_PATTERN = r"(https?:\/\/(?:www\.)?teraboxlink\.com\/[\w\/]+)"
 
 async def is_admin(client, chat_id, user_id):
     member = await client.get_chat_member(chat_id, user_id)
