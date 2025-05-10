@@ -9,6 +9,8 @@ from typing import Dict
 import re
 import asyncio
 import logging
+from Terabox import get_terabox_video_url, download_file
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
