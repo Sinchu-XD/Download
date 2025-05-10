@@ -58,7 +58,7 @@ async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
 
-@app.on_message(filters.private & filters.regex(TERABOX_URL_PATTERN))
+@app.on_message(filters.private & filters.group & filters.regex(TERABOX_URL_PATTERN))
 async def handle_message(client, message):
     url = message.text.strip()
 
@@ -71,9 +71,23 @@ async def handle_message(client, message):
     try:
         logger.info(f"Extracting video link for: {url}")
         video_url, filename = await get_terabox_video_url(url)
+
+        # Debugging: Check if the returned values are strings
+        if not isinstance(video_url, str) or not isinstance(filename, str):
+            logger.error(f"Invalid return values: video_url={video_url}, filename={filename}")
+            await msg.edit_text(f"❌ Failed: Invalid URL or filename.")
+            return
+
         await msg.edit_text(f"📥 Downloading `{filename}` ...")
 
+        # Ensure valid file path before download
         file_path = await download_file(video_url, filename)
+        
+        if not isinstance(file_path, str) or not os.path.exists(file_path):
+            logger.error(f"Failed to download file. Invalid file path: {file_path}")
+            await msg.edit_text(f"❌ Failed to download file.")
+            return
+
         await msg.edit_text("📤 Uploading to Telegram...")
 
         await message.reply_video(video=file_path, caption=f"🎬 `{filename}`")
@@ -82,6 +96,7 @@ async def handle_message(client, message):
     except Exception as e:
         logger.error(f"Error during TeraBox download: {str(e)}")
         await msg.edit_text(f"❌ Failed: {str(e)}")
+
 
 
 @app.on_message(filters.command("tagall") & filters.group)
