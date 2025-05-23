@@ -21,6 +21,8 @@ BOT_TOKEN = "7902638287:AAGyCNE-ndYeZ8t9n2G8P0ATzJp5eJi0uhY"
 
 app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
+COOKIE_FILE = "ig_cookies.json"
+
 tag_processes: Dict[int, bool] = {}
 SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
 TERABOX_URL_PATTERN = r"(https?:\/\/(?:www\.)?teraboxlink\.com\/[\w\/]+)"
@@ -97,6 +99,58 @@ async def handle_message(client, message):
         logger.error(f"Error during TeraBox download: {str(e)}")
         await msg.edit_text(f"❌ Failed: {str(e)}")
 
+
+@app.on_message(filters.group & filters.regex(r"^(https?://(www\.)?instagram\.com/.+)$"))
+async def insta_link_handler(client, message):
+    url = message.text.strip()
+    await message.reply("Processing your Instagram link...")
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context()
+        import json
+        with open(COOKIE_FILE, "r") as f:
+            cookies = json.load(f)
+        pw_cookies = []
+        for c in cookies:
+            pw_cookies.append({
+                "name": c["name"],
+                "value": c["value"],
+                "domain": c["domain"],
+                "path": c.get("path", "/"),
+                "httpOnly": c.get("httpOnly", False),
+                "secure": c.get("secure", True),
+                "sameSite": c.get("sameSite", "Lax").capitalize() if c.get("sameSite") else "Lax",
+            })
+        await context.add_cookies(pw_cookies)
+        page = await context.new_page()
+        try:
+            await page.goto(url, timeout=15000)
+            media_urls = await extract_media_urls(page)
+            if not media_urls:
+                await message.reply("Sorry, couldn't extract media from the provided link.")
+                await browser.close()
+                return
+            files = []
+            for idx, media_url in enumerate(media_urls):
+                ext = ".mp4" if ".mp4" in media_url else ".jpg"
+                filename = f"media_{idx}{ext}"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(media_url) as resp:
+                        if resp.status == 200:
+                            content = await resp.read()
+                            with open(filename, "wb") as f:
+                                f.write(content)
+                            files.append(filename)
+            await browser.close()
+            for file in files:
+                if file.endswith(".mp4"):
+                    await message.reply_video(file)
+                else:
+                    await message.reply_photo(file)
+                os.remove(file)
+        except Exception as e:
+            await message.reply(f"An error occurred: {e}")
+            await browser.close()
 
 
 @app.on_message(filters.command("tagall") & filters.group)
