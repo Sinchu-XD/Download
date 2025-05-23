@@ -2,6 +2,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from pyrogram.enums import ChatMembersFilter
 from Message import get_random_message
+from Helper import extract_media_urls
 import yt_dlp
 import os
 from asyncio import sleep
