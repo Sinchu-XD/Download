@@ -102,7 +102,7 @@ async def handle_message(client, message):
         logger.error(f"Error during TeraBox download: {str(e)}")
         await msg.edit_text(f"❌ Failed: {str(e)}")
 
-
+"""
 #@app.on_message(filters.group & filters.regex(r"^(https?://(www\.)?instagram\.com/.+)$"))
 async def insta_link_handler(client, message):
     url = message.text.strip()
@@ -155,7 +155,7 @@ async def insta_link_handler(client, message):
             await message.reply(f"An error occurred: {e}")
             await browser.close()
 
-
+"""
 @app.on_message(filters.command("tagall") & filters.group)
 async def tag_all(_, message: Message):
     if not message.from_user:
