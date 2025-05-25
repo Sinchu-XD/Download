@@ -103,7 +103,7 @@ async def handle_message(client, message):
         await msg.edit_text(f"❌ Failed: {str(e)}")
 
 
-@app.on_message(filters.group & filters.regex(r"^(https?://(www\.)?instagram\.com/.+)$"))
+#@app.on_message(filters.group & filters.regex(r"^(https?://(www\.)?instagram\.com/.+)$"))
 async def insta_link_handler(client, message):
     url = message.text.strip()
     await message.reply("Processing your Instagram link...")
