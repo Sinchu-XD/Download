@@ -56,7 +56,7 @@ async def download_media(message: Message, url: str):
     except Exception as e:
         await msg.edit(f"❌ Failed: `{str(e)}`")
 
-@app.on_message(filters.group & filters.regex(SOCIAL_URL_PATTERN))
+@app.on_message(filters.group & filters.private & filters.regex(SOCIAL_URL_PATTERN))
 async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
