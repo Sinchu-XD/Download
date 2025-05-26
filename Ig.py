@@ -109,7 +109,7 @@ def start(_, message):
 def on_instagram_url(client, message):
     insta_url = re.search(INSTAGRAM_REGEX, message.text).group(0)
     if not insta_url.startswith("http"):
-        message.reply("❌ Please send a valid Instagram URL.")
+        await message.reply("❌ Please send a valid Instagram URL.")
         return
 
     message.reply("⏳ Processing your request... Please wait.")
