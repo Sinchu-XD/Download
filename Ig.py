@@ -138,37 +138,37 @@ async def download_reel_or_post(page, url):
     return None
 
 
-async def get_profile_pic_url(page, username):
-    profile_pic_element = await page.query_selector("img[data-testid='user-avatar']")
-    if not profile_pic_element:
-        imgs = await page.query_selector_all("img")
-        for img in imgs:
-            alt = await img.get_attribute("alt")
-            if alt and username.lower() in alt.lower():
-                profile_pic_element = img
-                break
-    if profile_pic_element:
-        return await profile_pic_element.get_attribute("src")
-    return None
+async def get_profile_info(page, username: str) -> str:
+    # Wait for page content to load fully
+    await page.wait_for_timeout(5000)
 
+    content = await page.content()
 
-async def get_profile_info(page, username):
-    bio_element = await page.query_selector("div.-vDIg span")
-    bio_text = await bio_element.inner_text() if bio_element else "N/A"
+    # Extract JSON data embedded in the page (window._sharedData)
+    json_data_match = re.search(r'window\._sharedData = (.*?);</script>', content)
 
-    stats = await page.query_selector_all("ul li span span")
-    posts = await stats[0].inner_text() if len(stats) > 0 else "N/A"
-    followers = await stats[1].get_attribute("title") if len(stats) > 1 else "N/A"
-    following = await stats[2].inner_text() if len(stats) > 2 else "N/A"
+    if not json_data_match:
+        return "❌ Could not parse profile data."
 
-    info_text = (
-        f"👤 Username: {username}\n"
-        f"📝 Bio: {bio_text}\n"
-        f"📷 Posts: {posts}\n"
-        f"👥 Followers: {followers}\n"
-        f"➡️ Following: {following}"
-    )
-    return info_text
+    try:
+        data = json.loads(json_data_match.group(1))
+        user_data = data['entry_data']['ProfilePage'][0]['graphql']['user']
+
+        bio_text = user_data.get('biography', 'N/A')
+        posts = user_data['edge_owner_to_timeline_media']['count']
+        followers = user_data['edge_followed_by']['count']
+        following = user_data['edge_follow']['count']
+
+        info_text = (
+            f"👤 Username: {username}\n"
+            f"📝 Bio: {bio_text or 'N/A'}\n"
+            f"📷 Posts: {posts}\n"
+            f"👥 Followers: {followers}\n"
+            f"➡️ Following: {following}"
+        )
+        return info_text
+    except Exception as e:
+        return f"❌ Error parsing profile info: {e}"
 
 
 @app.on_callback_query()
