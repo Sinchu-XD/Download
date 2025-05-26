@@ -39,7 +39,7 @@ async def download_media(message: Message, url: str):
     msg = await message.reply("🔍 Fetching media, please wait...")
 
     try:
-        cookies_path = "ig_cookies.json"
+        cookies_path = "cookies/cookies.txt"
         if not os.path.exists(cookies_path):
             await msg.edit("❌ Cookie file not found!")
             return
