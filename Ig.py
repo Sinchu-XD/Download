@@ -2,6 +2,7 @@ import os
 import re
 import json
 import requests
+import hashlib
 from urllib.parse import urlparse
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -19,6 +20,8 @@ INSTAGRAM_REGEX = re.compile(
     r"(https?://)?(www\.)?instagram\.com/[\w\-/\?=]+", re.IGNORECASE
 )
 
+# In-memory map for short_id -> full URL
+url_map = {}
 
 def load_cookies():
     with open(COOKIE_PATH, "r") as f:
@@ -34,14 +37,11 @@ def load_cookies():
             cookie["sameSite"] = "Lax"
     return cookies
 
-
 async def login_with_cookies(context, cookies):
     await context.add_cookies(cookies)
 
-
 def sanitize_filename(filename):
     return re.sub(r'[\\/*?:"<>|]', "_", filename)
-
 
 def download_file(url, filename):
     r = requests.get(url, stream=True)
@@ -51,7 +51,6 @@ def download_file(url, filename):
             f.write(chunk)
     return full_path
 
-
 def get_instagram_type(url: str) -> str:
     if "/reel/" in url:
         return "reel"
@@ -60,14 +59,15 @@ def get_instagram_type(url: str) -> str:
     else:
         return "profile"
 
+def get_short_id(url: str) -> str:
+    # Generate an 8-character hash for the URL to use as a short ID
+    return hashlib.sha256(url.encode()).hexdigest()[:8]
 
 app = Client("ig_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
 
 @app.on_message(filters.command("start"))
 async def start(_, message):
     await message.reply("Hello! Send me an Instagram URL and I'll fetch info or media with buttons to choose what to download.")
-
 
 @app.on_message(filters.regex(INSTAGRAM_REGEX))
 async def on_instagram_url(client, message):
@@ -78,22 +78,21 @@ async def on_instagram_url(client, message):
 
     await message.reply("⏳ Processing your request... Please wait.")
 
-    # Use async playwright properly
+    # Store URL with a short ID
+    short_id = get_short_id(insta_url)
+    url_map[short_id] = insta_url
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
-
-        # Load cookies if available and add them to context
         cookies = load_cookies()
         await login_with_cookies(context, cookies)
-
         page = await context.new_page()
 
         ig_type = get_instagram_type(insta_url)
         parsed = urlparse(insta_url)
         username = parsed.path.strip("/").split("/")[-1]
 
-        # Load page accordingly
         if ig_type == "profile":
             await page.goto(f"https://www.instagram.com/{username}/")
             await page.wait_for_timeout(4000)
@@ -101,28 +100,34 @@ async def on_instagram_url(client, message):
             await page.goto(insta_url)
             await page.wait_for_timeout(4000)
 
-        # Prepare buttons depending on type
         buttons = []
-
         if ig_type in ("reel", "post"):
             buttons.append(
-                [InlineKeyboardButton("▶️ Download Reel/Post", callback_data=f"download_reel|{insta_url}")]
+                [InlineKeyboardButton(
+                    "▶️ Download Reel/Post",
+                    callback_data=f"download_reel|{short_id}"
+                )]
             )
-
         buttons.append(
-            [InlineKeyboardButton("🖼️ Profile Pic", callback_data=f"profile_pic|{username}")]
+            [InlineKeyboardButton(
+                "🖼️ Profile Pic",
+                callback_data=f"profile_pic|{username}"
+            )]
         )
         buttons.append(
-            [InlineKeyboardButton("📊 Account Details", callback_data=f"account_details|{username}")]
+            [InlineKeyboardButton(
+                "📊 Account Details",
+                callback_data=f"account_details|{username}"
+            )]
         )
 
         reply_markup = InlineKeyboardMarkup(buttons)
         await message.reply(
-            f"Choose what you want to download from Instagram URL:\n\n{insta_url}", reply_markup=reply_markup
+            f"Choose what you want to download from Instagram URL:\n\n{insta_url}",
+            reply_markup=reply_markup
         )
 
         await browser.close()
-
 
 async def download_reel_or_post(page, url):
     await page.goto(url, timeout=60000)
@@ -137,14 +142,10 @@ async def download_reel_or_post(page, url):
             return path
     return None
 
-
 async def get_profile_info(page, username: str) -> str:
-    # Wait for page content to load fully
     await page.wait_for_timeout(5000)
-
     content = await page.content()
 
-    # Extract JSON data embedded in the page (window._sharedData)
     json_data_match = re.search(r'window\._sharedData = (.*?);</script>', content)
 
     if not json_data_match:
@@ -170,11 +171,20 @@ async def get_profile_info(page, username: str) -> str:
     except Exception as e:
         return f"❌ Error parsing profile info: {e}"
 
+async def get_profile_pic_url(page, username: str):
+    # Navigate and get profile pic URL from meta tag or user data
+    content = await page.content()
+    match = re.search(r'"profile_pic_url_hd":"([^"]+)"', content)
+    if match:
+        # Unescape the URL
+        url = match.group(1).replace('\\u0026', '&').replace('\\', '')
+        return url
+    return None
 
 @app.on_callback_query()
 async def button_handler(client: Client, callback_query: CallbackQuery):
     data = callback_query.data
-    await callback_query.answer()  # Always answer callback queries
+    await callback_query.answer()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -185,7 +195,13 @@ async def button_handler(client: Client, callback_query: CallbackQuery):
 
         try:
             if data.startswith("download_reel|"):
-                url = data.split("|")[1]
+                short_id = data.split("|")[1]
+                url = url_map.get(short_id)
+                if not url:
+                    await callback_query.message.reply("❌ URL expired or not found.")
+                    await browser.close()
+                    return
+
                 await callback_query.message.reply("⏳ Downloading reel/post...")
                 path = await download_reel_or_post(page, url)
                 if path:
@@ -212,13 +228,15 @@ async def button_handler(client: Client, callback_query: CallbackQuery):
                 await page.wait_for_timeout(4000)
                 info = await get_profile_info(page, username)
                 await callback_query.message.reply(info)
+
             else:
                 await callback_query.answer("Unknown action.", show_alert=True)
+
         except Exception as e:
             await callback_query.message.reply(f"❌ Error: {e}")
+
         finally:
             await browser.close()
-
 
 if __name__ == "__main__":
     print("Bot is running...")
