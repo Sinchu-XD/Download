@@ -1,45 +1,77 @@
 import json
 import requests
-from bs4 import BeautifulSoup
+import re
+import os
 
-# Load cookies from JSON file
-def load_cookies(filename):
-    with open(filename, 'r') as f:
-        cookies_list = json.load(f)
-    cookies = {cookie['name']: cookie['value'] for cookie in cookies_list}
-    return cookies
+# Load cookies from cookies.json file
+def load_cookies(path="ig_cookies.json"):
+    with open(path, "r") as file:
+        raw = json.load(file)
+        return {cookie["name"]: cookie["value"] for cookie in raw}
 
-# Download video from Instagram post
-def download_instagram_video(post_url, cookies_file='ig_cookies.json'):
-    cookies = load_cookies(cookies_file)
-    headers = {
-        'User-Agent': 'Mozilla/5.0',
-    }
+# Extract shortcode from URL
+def extract_shortcode(url):
+    match = re.search(r"instagram\.com/(?:reel|p|tv)/([a-zA-Z0-9_-]+)", url)
+    return match.group(1) if match else None
 
-    # Fetch the post page
-    response = requests.get(post_url, cookies=cookies, headers=headers)
-    if response.status_code != 200:
-        print("Failed to fetch post. Check cookies or URL.")
+# Download file
+def download_file(url, filename):
+    print(f"Downloading: {url}")
+    r = requests.get(url, stream=True)
+    if r.status_code == 200:
+        with open(filename, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"Saved as: {filename}")
+    else:
+        print("Failed to download video")
+
+# Main function
+def download_instagram_video(url, cookies_path="cookies.json"):
+    shortcode = extract_shortcode(url)
+    if not shortcode:
+        print("Invalid Instagram URL.")
         return
 
-    soup = BeautifulSoup(response.text, 'html.parser')
-    scripts = soup.find_all('script', type='application/ld+json')
+    api_url = f"https://www.instagram.com/api/v1/media/{shortcode}/info/"
+    cookies = load_cookies(cookies_path)
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+    }
 
-    for script in scripts:
-        try:
-            data = json.loads(script.string)
-            if 'video' in data:
-                video_url = data['video']
-                print(f"Downloading: {video_url}")
-                video_data = requests.get(video_url).content
-                with open('instagram_video.mp4', 'wb') as f:
-                    f.write(video_data)
-                print("Download complete: instagram_video.mp4")
-                return
-        except:
-            continue
+    response = requests.get(api_url, headers=headers, cookies=cookies)
+    if response.status_code != 200:
+        print("Failed to fetch media info. Status:", response.status_code)
+        print("Response:", response.text)
+        return
 
-    print("Video URL not found.")
+    try:
+        data = response.json()
+        media = data["items"][0]
+
+        if media.get("media_type") == 2:  # video
+            video_url = media["video_versions"][0]["url"]
+            download_file(video_url, f"{shortcode}.mp4")
+        elif media.get("media_type") == 1:  # photo
+            image_url = media["image_versions2"]["candidates"][0]["url"]
+            download_file(image_url, f"{shortcode}.jpg")
+        elif media.get("media_type") == 8:  # carousel
+            for i, item in enumerate(media["carousel_media"]):
+                if item["media_type"] == 2:
+                    media_url = item["video_versions"][0]["url"]
+                    ext = "mp4"
+                else:
+                    media_url = item["image_versions2"]["candidates"][0]["url"]
+                    ext = "jpg"
+                download_file(media_url, f"{shortcode}_{i}.{ext}")
+        else:
+            print("Unsupported media type.")
+
+    except Exception as e:
+        print("Error parsing response:", str(e))
 
 # Example usage
-download_instagram_video("https://www.instagram.com/reel/DDn3HANoBd0/?igsh=cjF1MTVzZHdod2M4")
+if __name__ == "__main__":
+    reel_url = "https://www.instagram.com/reel/DDn3HANoBd0/"
+    download_instagram_video(reel_url)
