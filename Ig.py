@@ -19,6 +19,10 @@ COOKIE_PATH = "playwright_cookies.json"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+INSTAGRAM_REGEX = re.compile(
+    r"(https?://)?(www\.)?instagram\.com/[\w\-/\?=]+", re.IGNORECASE
+)
+
 bot = Client("IGScraperBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 
@@ -82,9 +86,9 @@ async def start_handler(_, message: Message):
     await message.reply("👋 Send me any public Instagram post, reel, or profile link to download.")
 
 
-@bot.on_message(filters.private & filters.text)
-async def handle_instagram_url(_, message: Message):
-    url = message.text.strip()
+@bot.on_message(filters.regex(INSTAGRAM_REGEX))
+async def on_instagram_url(client, message):
+    insta_url = re.search(INSTAGRAM_REGEX, message.text).group(0)
     if not url.startswith("http") or "instagram.com" not in url:
         return await message.reply("❌ Invalid Instagram URL.")
 
