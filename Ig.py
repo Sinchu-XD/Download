@@ -4,11 +4,46 @@ import re
 import time
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
+import requests
 
 
-COOKIE_PATH = "ig_cookies.json"
+RAW_COOKIE_PATH = "ig_cookies.json"
+COOKIE_PATH = "playwright_cookies.json"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+
+def sanitize_and_save_cookies(input_path, output_path):
+    with open(input_path, "r") as f:
+        raw_cookies = json.load(f)
+
+    valid_same_sites = {"Lax", "Strict", "None"}
+    converted_cookies = []
+
+    for cookie in raw_cookies:
+        new_cookie = {
+            "name": cookie["name"],
+            "value": cookie["value"],
+            "domain": cookie["domain"].lstrip("."),
+            "path": cookie.get("path", "/"),
+            "secure": cookie.get("secure", True),
+            "httpOnly": cookie.get("httpOnly", False),
+            "sameSite": "Lax",  # fallback
+        }
+
+        ss = cookie.get("sameSite", "").capitalize()
+        if ss in valid_same_sites:
+            new_cookie["sameSite"] = ss
+
+        if "expirationDate" in cookie and not cookie.get("session", False):
+            new_cookie["expires"] = int(cookie["expirationDate"])
+
+        converted_cookies.append(new_cookie)
+
+    with open(output_path, "w") as f:
+        json.dump(converted_cookies, f, indent=4)
+
+    print(f"✅ Sanitized cookies saved to {output_path}")
 
 
 def load_cookies():
@@ -108,7 +143,6 @@ def download_profile(page, url):
         print("❌ Failed to download profile info:", e)
 
 def download_file(url, filename):
-    import requests
     r = requests.get(url, stream=True)
     full_path = os.path.join(DOWNLOAD_DIR, filename)
     with open(full_path, "wb") as f:
@@ -117,12 +151,16 @@ def download_file(url, filename):
 
 
 def main(insta_url: str):
+    # 1. Sanitize browser-exported cookies to Playwright format
+    sanitize_and_save_cookies(RAW_COOKIE_PATH, COOKIE_PATH)
+    
+    # 2. Load cleaned cookies
+    cookies = load_cookies()
     insta_type = get_instagram_type(insta_url)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
-        cookies = load_cookies()
         login_with_cookies(context, cookies)
 
         page = context.new_page()
@@ -140,3 +178,4 @@ def main(insta_url: str):
 if __name__ == "__main__":
     insta_url = input("🔗 Enter Instagram URL: ").strip()
     main(insta_url)
+    
