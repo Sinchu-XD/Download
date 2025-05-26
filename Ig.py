@@ -10,9 +10,9 @@ from pyrogram.types import Message
 
 from playwright.async_api import async_playwright
 
-API_ID = "YOUR_API_ID"
-API_HASH = "YOUR_API_HASH"
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+API_ID = 6067591
+API_HASH = "94e17044c2393f43fda31d3afe77b26b"
+BOT_TOKEN = "7902638287:AAGyCNE-ndYeZ8t9n2G8P0ATzJp5eJi0uhY"
 
 RAW_COOKIE_PATH = "ig_cookies.json"
 COOKIE_PATH = "playwright_cookies.json"
