@@ -94,7 +94,10 @@ def download_reel_or_post(page, url, ig_type):
 
 
 def download_profile(page, url):
-    username = url.strip("/").split("/")[-1]
+    # Remove query parameters from URL:
+    parsed = urlparse(url)
+    clean_path = parsed.path.strip("/")
+    username = clean_path.split("/")[-1]
     profile_url = f"https://www.instagram.com/{username}/"
 
     print(f"Fetching profile: {profile_url}")
@@ -102,9 +105,23 @@ def download_profile(page, url):
     page.wait_for_timeout(5000)
 
     try:
-        profile_pic_url = page.query_selector("img")
-        profile_pic_url = profile_pic_url.get_attribute("src")
-        download_file(profile_pic_url, f"{username}_profile_pic.jpg")
+        # Try better selector for profile pic
+        profile_pic_element = page.query_selector("img[data-testid='user-avatar']")
+        if not profile_pic_element:
+            # fallback: try first img with alt containing username
+            imgs = page.query_selector_all("img")
+            profile_pic_element = None
+            for img in imgs:
+                alt = img.get_attribute("alt")
+                if alt and username.lower() in alt.lower():
+                    profile_pic_element = img
+                    break
+
+        if profile_pic_element:
+            profile_pic_url = profile_pic_element.get_attribute("src")
+            download_file(profile_pic_url, f"{username}_profile_pic.jpg")
+        else:
+            print("❌ Could not find profile picture.")
 
         bio_element = page.query_selector("div.-vDIg span")
         bio_text = bio_element.inner_text() if bio_element else "N/A"
@@ -124,6 +141,7 @@ def download_profile(page, url):
         print("✅ Profile data downloaded.")
     except Exception as e:
         print("❌ Failed to download profile info:", e)
+
 
 
 def download_file(url, filename):
