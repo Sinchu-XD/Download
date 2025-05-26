@@ -39,12 +39,17 @@ async def download_media(message: Message, url: str):
     msg = await message.reply("🔍 Fetching media, please wait...")
 
     try:
+        cookies_path = "ig_cookies.json"
+        if not os.path.exists(cookies_path):
+            await msg.edit("❌ Cookie file not found!")
+            return
+
         ydl_opts = {
-            'outtmpl': 'downloads/%(title)s.%(ext)s',
+            'outtmpl': 'downloads/%(title).80s.%(ext)s',
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'quiet': True,
-            'cookiefile': "cookies/cookies.txt",
+            'cookiefile': cookies_path,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -56,12 +61,13 @@ async def download_media(message: Message, url: str):
         os.remove(file_path)
 
     except Exception as e:
-        await msg.edit(f"❌ Failed: `{str(e)}`")
+        await msg.edit(f"❌ Failed:\n`{str(e)}`")
 
 @app.on_message(filters.regex(SOCIAL_URL_PATTERN))
 async def handle_download(_, message: Message):
     url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
     await download_media(message, url)
+    
 
 @app.on_message(filters.private & filters.regex(TERABOX_URL_PATTERN))
 async def handle_message(client, message):
