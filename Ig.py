@@ -1,16 +1,25 @@
 import json
 import os
 import re
-import time
+import asyncio
+import aiohttp
 from urllib.parse import urlparse
-from playwright.sync_api import sync_playwright
-import requests
 
+from pyrogram import Client, filters
+from pyrogram.types import Message
+
+from playwright.async_api import async_playwright
+
+API_ID = "YOUR_API_ID"
+API_HASH = "YOUR_API_HASH"
+BOT_TOKEN = "YOUR_BOT_TOKEN"
 
 RAW_COOKIE_PATH = "ig_cookies.json"
 COOKIE_PATH = "playwright_cookies.json"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+bot = Client("IGScraperBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 
 def sanitize_and_save_cookies(input_path, output_path):
@@ -43,14 +52,6 @@ def sanitize_and_save_cookies(input_path, output_path):
     with open(output_path, "w") as f:
         json.dump(converted_cookies, f, indent=4)
 
-    print(f"✅ Sanitized cookies saved to {output_path}")
-
-
-def load_cookies():
-    with open(COOKIE_PATH, "r") as f:
-        cookies = json.load(f)
-    return cookies
-
 
 def get_instagram_type(url: str) -> str:
     if "/reel/" in url:
@@ -65,117 +66,113 @@ def sanitize_filename(filename):
     return re.sub(r'[\\/*?:"<>|]', "_", filename)
 
 
-def login_with_cookies(context, cookies):
-    context.add_cookies(cookies)
+async def download_file(url, filename):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as r:
+            if r.status == 200:
+                path = os.path.join(DOWNLOAD_DIR, filename)
+                with open(path, "wb") as f:
+                    f.write(await r.read())
+                return path
+    return None
 
 
-def download_reel_or_post(page, url, ig_type):
-    print(f"Fetching {ig_type} from: {url}")
-    page.goto(url, timeout=60000)
-    page.wait_for_timeout(5000)
-
-    try:
-        page.wait_for_selector("video", timeout=10000)
-        video_element = page.query_selector("video")
-        video_url = video_element.get_attribute("src")
-
-        filename = sanitize_filename(url.split("/")[-2]) + ".mp4"
-        download_file(video_url, filename)
-        print(f"✅ {ig_type.capitalize()} downloaded: {filename}")
-    except:
-        print("❌ Failed to fetch video. Trying image fallback...")
-
-        image_elements = page.query_selector_all("img")
-        for idx, img in enumerate(image_elements):
-            img_url = img.get_attribute("src")
-            filename = sanitize_filename(f"{url.split('/')[-2]}_{idx}.jpg")
-            download_file(img_url, filename)
-        print("✅ Image(s) downloaded")
+@bot.on_message(filters.command("start") & filters.private)
+async def start_handler(_, message: Message):
+    await message.reply("👋 Send me any public Instagram post, reel, or profile link to download.")
 
 
-def download_profile(page, url):
-    # Remove query parameters from URL:
-    parsed = urlparse(url)
-    clean_path = parsed.path.strip("/")
-    username = clean_path.split("/")[-1]
-    profile_url = f"https://www.instagram.com/{username}/"
+@bot.on_message(filters.private & filters.text)
+async def handle_instagram_url(_, message: Message):
+    url = message.text.strip()
+    if not url.startswith("http") or "instagram.com" not in url:
+        return await message.reply("❌ Invalid Instagram URL.")
 
-    print(f"Fetching profile: {profile_url}")
-    page.goto(profile_url)
-    page.wait_for_timeout(5000)
+    await message.reply("🔍 Processing...")
 
     try:
-        # Try better selector for profile pic
-        profile_pic_element = page.query_selector("img[data-testid='user-avatar']")
-        if not profile_pic_element:
-            # fallback: try first img with alt containing username
-            imgs = page.query_selector_all("img")
-            profile_pic_element = None
-            for img in imgs:
-                alt = img.get_attribute("alt")
-                if alt and username.lower() in alt.lower():
-                    profile_pic_element = img
-                    break
+        sanitize_and_save_cookies(RAW_COOKIE_PATH, COOKIE_PATH)
+        cookies = json.load(open(COOKIE_PATH))
 
-        if profile_pic_element:
-            profile_pic_url = profile_pic_element.get_attribute("src")
-            download_file(profile_pic_url, f"{username}_profile_pic.jpg")
-        else:
-            print("❌ Could not find profile picture.")
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context()
+            await context.add_cookies(cookies)
+            page = await context.new_page()
 
-        bio_element = page.query_selector("div.-vDIg span")
-        bio_text = bio_element.inner_text() if bio_element else "N/A"
+            ig_type = get_instagram_type(url)
 
-        stats = page.query_selector_all("ul li span span")
-        posts = stats[0].inner_text() if len(stats) > 0 else "N/A"
-        followers = stats[1].get_attribute("title") if len(stats) > 1 else "N/A"
-        following = stats[2].inner_text() if len(stats) > 2 else "N/A"
+            if ig_type in ["reel", "post"]:
+                await page.goto(url, timeout=60000)
+                await page.wait_for_timeout(5000)
+                try:
+                    await page.wait_for_selector("video", timeout=10000)
+                    video_element = await page.query_selector("video")
+                    video_url = await video_element.get_attribute("src")
 
-        with open(os.path.join(DOWNLOAD_DIR, f"{username}_profile_info.txt"), "w") as f:
-            f.write(f"Username: {username}\n")
-            f.write(f"Bio: {bio_text}\n")
-            f.write(f"Posts: {posts}\n")
-            f.write(f"Followers: {followers}\n")
-            f.write(f"Following: {following}\n")
+                    filename = sanitize_filename(url.split("/")[-2]) + ".mp4"
+                    file_path = await download_file(video_url, filename)
+                    if file_path:
+                        await message.reply_video(file_path)
+                    else:
+                        await message.reply("❌ Failed to download video.")
+                except:
+                    image_elements = await page.query_selector_all("img")
+                    if not image_elements:
+                        return await message.reply("❌ No media found.")
+                    for idx, img in enumerate(image_elements[:3]):
+                        img_url = await img.get_attribute("src")
+                        filename = sanitize_filename(f"{url.split('/')[-2]}_{idx}.jpg")
+                        file_path = await download_file(img_url, filename)
+                        if file_path:
+                            await message.reply_photo(file_path)
+            elif ig_type == "profile":
+                parsed = urlparse(url)
+                username = parsed.path.strip("/").split("/")[-1]
+                profile_url = f"https://www.instagram.com/{username}/"
 
-        print("✅ Profile data downloaded.")
+                await page.goto(profile_url)
+                await page.wait_for_timeout(5000)
+
+                profile_pic_url = None
+                pic_elem = await page.query_selector("img[data-testid='user-avatar']")
+                if not pic_elem:
+                    imgs = await page.query_selector_all("img")
+                    for img in imgs:
+                        alt = await img.get_attribute("alt")
+                        if alt and username.lower() in alt.lower():
+                            pic_elem = img
+                            break
+                if pic_elem:
+                    profile_pic_url = await pic_elem.get_attribute("src")
+                    pic_path = await download_file(profile_pic_url, f"{username}_profile.jpg")
+                    if pic_path:
+                        await message.reply_photo(pic_path)
+
+                bio_elem = await page.query_selector("div.-vDIg span")
+                bio = await bio_elem.inner_text() if bio_elem else "N/A"
+
+                stats = await page.query_selector_all("ul li span span")
+                posts = await stats[0].inner_text() if len(stats) > 0 else "N/A"
+                followers = await stats[1].get_attribute("title") if len(stats) > 1 else "N/A"
+                following = await stats[2].inner_text() if len(stats) > 2 else "N/A"
+
+                info_text = (
+                    f"👤 **Username:** {username}\n"
+                    f"📝 **Bio:** {bio}\n"
+                    f"📸 **Posts:** {posts}\n"
+                    f"👥 **Followers:** {followers}\n"
+                    f"🔄 **Following:** {following}"
+                )
+                await message.reply(info_text)
+            else:
+                await message.reply("❌ Unsupported Instagram link.")
+            await browser.close()
     except Exception as e:
-        print("❌ Failed to download profile info:", e)
-
-def download_file(url, filename):
-    r = requests.get(url, stream=True)
-    full_path = os.path.join(DOWNLOAD_DIR, filename)
-    with open(full_path, "wb") as f:
-        for chunk in r.iter_content(chunk_size=8192):
-            f.write(chunk)
-
-
-def main(insta_url: str):
-    # 1. Sanitize browser-exported cookies to Playwright format
-    sanitize_and_save_cookies(RAW_COOKIE_PATH, COOKIE_PATH)
-    
-    # 2. Load cleaned cookies
-    cookies = load_cookies()
-    insta_type = get_instagram_type(insta_url)
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        login_with_cookies(context, cookies)
-
-        page = context.new_page()
-
-        if insta_type == "reel" or insta_type == "post":
-            download_reel_or_post(page, insta_url, insta_type)
-        elif insta_type == "profile":
-            download_profile(page, insta_url)
-        else:
-            print("❌ Unknown Instagram link type.")
-
-        browser.close()
+        await message.reply(f"⚠️ Error: {e}")
 
 
 if __name__ == "__main__":
-    insta_url = input("🔗 Enter Instagram URL: ").strip()
-    main(insta_url)
+    print("Bot started...")
+    bot.run()
     
