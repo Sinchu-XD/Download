@@ -19,9 +19,7 @@ COOKIE_PATH = "playwright_cookies.json"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-INSTAGRAM_REGEX = re.compile(
-    r"(https?://)?(www\.)?instagram\.com/[\w\-/\?=]+", re.IGNORECASE
-)
+INSTAGRAM_REGEX = re.compile(r"(https?://)?(www\.)?instagram\.com/[\w\-/\?=]+", re.IGNORECASE)
 
 bot = Client("IGScraperBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -41,7 +39,7 @@ def sanitize_and_save_cookies(input_path, output_path):
             "path": cookie.get("path", "/"),
             "secure": cookie.get("secure", True),
             "httpOnly": cookie.get("httpOnly", False),
-            "sameSite": "Lax",  # fallback
+            "sameSite": "Lax",
         }
 
         ss = cookie.get("sameSite", "").capitalize()
@@ -89,6 +87,7 @@ async def start_handler(_, message: Message):
 @bot.on_message(filters.regex(INSTAGRAM_REGEX))
 async def on_instagram_url(client, message):
     insta_url = re.search(INSTAGRAM_REGEX, message.text).group(0)
+    if not insta_url:
         return await message.reply("❌ Invalid Instagram URL.")
 
     await message.reply("🔍 Processing...")
@@ -103,17 +102,17 @@ async def on_instagram_url(client, message):
             await context.add_cookies(cookies)
             page = await context.new_page()
 
-            ig_type = get_instagram_type(url)
+            ig_type = get_instagram_type(insta_url)
 
             if ig_type in ["reel", "post"]:
-                await page.goto(url, timeout=60000)
+                await page.goto(insta_url, timeout=60000)
                 await page.wait_for_timeout(5000)
                 try:
                     await page.wait_for_selector("video", timeout=10000)
                     video_element = await page.query_selector("video")
                     video_url = await video_element.get_attribute("src")
 
-                    filename = sanitize_filename(url.split("/")[-2]) + ".mp4"
+                    filename = sanitize_filename(insta_url.split("/")[-2]) + ".mp4"
                     file_path = await download_file(video_url, filename)
                     if file_path:
                         await message.reply_video(file_path)
@@ -125,12 +124,12 @@ async def on_instagram_url(client, message):
                         return await message.reply("❌ No media found.")
                     for idx, img in enumerate(image_elements[:3]):
                         img_url = await img.get_attribute("src")
-                        filename = sanitize_filename(f"{url.split('/')[-2]}_{idx}.jpg")
+                        filename = sanitize_filename(f"{insta_url.split('/')[-2]}_{idx}.jpg")
                         file_path = await download_file(img_url, filename)
                         if file_path:
                             await message.reply_photo(file_path)
             elif ig_type == "profile":
-                parsed = urlparse(url)
+                parsed = urlparse(insta_url)
                 username = parsed.path.strip("/").split("/")[-1]
                 profile_url = f"https://www.instagram.com/{username}/"
 
