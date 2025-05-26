@@ -27,7 +27,7 @@ def download_file(url, filename):
         print("Failed to download video")
 
 # Main function
-def download_instagram_video(url, cookies_path="cookies.json"):
+def download_instagram_video(url, cookies_path="ig_cookies.json"):
     shortcode = extract_shortcode(url)
     if not shortcode:
         print("Invalid Instagram URL.")
