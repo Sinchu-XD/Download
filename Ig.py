@@ -7,9 +7,9 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from playwright.sync_api import sync_playwright
 
-API_ID = 1234567               # Your Telegram API_ID
-API_HASH = "your_api_hash"    # Your Telegram API_HASH
-BOT_TOKEN = "123456:ABC-DEF"  # Your Telegram Bot Token
+API_ID = 6067591
+API_HASH = "94e17044c2393f43fda31d3afe77b26b"
+BOT_TOKEN = "7902638287:AAGyCNE-ndYeZ8t9n2G8P0ATzJp5eJi0uhY"
 
 COOKIE_PATH = "ig_cookies.json"
 DOWNLOAD_DIR = "downloads"
