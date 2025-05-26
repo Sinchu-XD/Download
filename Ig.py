@@ -89,7 +89,6 @@ async def start_handler(_, message: Message):
 @bot.on_message(filters.regex(INSTAGRAM_REGEX))
 async def on_instagram_url(client, message):
     insta_url = re.search(INSTAGRAM_REGEX, message.text).group(0)
-    if not url.startswith("http") or "instagram.com" not in url:
         return await message.reply("❌ Invalid Instagram URL.")
 
     await message.reply("🔍 Processing...")
