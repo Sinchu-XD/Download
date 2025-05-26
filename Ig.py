@@ -101,12 +101,12 @@ app = Client("ig_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 
 @app.on_message(filters.command("start"))
-def start(_, message):
+async def start(_, message):
     await message.reply("Hello! Send me an Instagram URL and I'll fetch info or media with buttons to choose what to download.")
 
 
 @app.on_message(filters.regex(INSTAGRAM_REGEX))
-def on_instagram_url(client, message):
+async def on_instagram_url(client, message):
     insta_url = re.search(INSTAGRAM_REGEX, message.text).group(0)
     if not insta_url.startswith("http"):
         await message.reply("❌ Please send a valid Instagram URL.")
