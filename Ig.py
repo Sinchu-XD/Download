@@ -23,7 +23,20 @@ INSTAGRAM_REGEX = re.compile(
 def load_cookies():
     with open(COOKIE_PATH, "r") as f:
         cookies = json.load(f)
+    for cookie in cookies:
+        same_site = cookie.get("sameSite")
+        if same_site:
+            normalized = same_site.capitalize()
+            if normalized not in ["Strict", "Lax", "None"]:
+                normalized = "Lax"
+            cookie["sameSite"] = normalized
+        else:
+            cookie["sameSite"] = "Lax"
     return cookies
+
+
+async def login_with_cookies(context, cookies):
+    await context.add_cookies(cookies)
 
 
 def sanitize_filename(filename):
@@ -72,7 +85,7 @@ async def on_instagram_url(client, message):
 
         # Load cookies if available and add them to context
         cookies = load_cookies()
-        await context.add_cookies(cookies)
+        await login_with_cookies(context, cookies)
 
         page = await context.new_page()
 
