@@ -102,7 +102,7 @@ app = Client("ig_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 @app.on_message(filters.command("start"))
 def start(_, message):
-    message.reply("Hello! Send me an Instagram URL and I'll fetch info or media with buttons to choose what to download.")
+    await message.reply("Hello! Send me an Instagram URL and I'll fetch info or media with buttons to choose what to download.")
 
 
 @app.on_message(filters.regex(INSTAGRAM_REGEX))
