@@ -5,7 +5,7 @@ import requests
 from urllib.parse import urlparse
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 
 API_ID = 6067591
 API_HASH = "94e17044c2393f43fda31d3afe77b26b"
@@ -114,7 +114,7 @@ async def on_instagram_url(client, message):
 
     message.reply("⏳ Processing your request... Please wait.")
 
-    with sync_playwright() as p:
+    with async_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
         cookies = load_cookies()
@@ -159,7 +159,7 @@ def button_handler(client: Client, callback_query: CallbackQuery):
     data = callback_query.data
     client = callback_query._client  # pyrogram client instance
 
-    with sync_playwright() as p:
+    with async_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
         cookies = load_cookies()
