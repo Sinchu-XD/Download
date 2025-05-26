@@ -1,9 +1,10 @@
-import os
 import json
+import os
 import re
 import asyncio
 import aiohttp
 from urllib.parse import urlparse
+
 from playwright.async_api import async_playwright
 
 RAW_COOKIE_PATH = "ig_cookies.json"
@@ -59,17 +60,23 @@ def sanitize_filename(filename):
 
 
 async def download_file(url, filename):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as r:
-            if r.status == 200:
-                path = os.path.join(DOWNLOAD_DIR, filename)
-                with open(path, "wb") as f:
-                    f.write(await r.read())
-                return path
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as r:
+                if r.status == 200:
+                    path = os.path.join(DOWNLOAD_DIR, filename)
+                    content = await r.read()
+                    with open(path, "wb") as f:
+                        f.write(content)
+                    return path
+                else:
+                    print(f"❌ Failed to fetch media: HTTP {r.status}")
+    except Exception as e:
+        print(f"⚠️ Exception in downloading: {e}")
     return None
 
 
-async def scrape_instagram(url: str):
+async def scrape_instagram(url):
     sanitize_and_save_cookies(RAW_COOKIE_PATH, COOKIE_PATH)
     cookies = json.load(open(COOKIE_PATH))
 
@@ -81,40 +88,39 @@ async def scrape_instagram(url: str):
 
         ig_type = get_instagram_type(url)
         print(f"Detected type: {ig_type}")
+
         await page.goto(url, timeout=60000)
         await page.wait_for_timeout(5000)
 
         if ig_type in ["reel", "post"]:
             try:
-                await page.evaluate("window.scrollBy(0, window.innerHeight)")
-                await page.wait_for_timeout(3000)
                 await page.wait_for_selector("video", timeout=10000)
                 video_element = await page.query_selector("video")
                 video_url = await video_element.get_attribute("src")
-                print("Video URL:", video_url)
+                print(f"Video URL: {video_url}")
 
                 filename = sanitize_filename(url.split("/")[-2]) + ".mp4"
                 file_path = await download_file(video_url, filename)
-                print("✅ Downloaded to:", file_path)
+                print(f"✅  Downloaded to: {file_path}")
             except:
+                print("⚠️ No video found. Trying to get image(s)...")
                 image_elements = await page.query_selector_all("img")
                 if not image_elements:
                     print("❌ No media found.")
-                    return
                 for idx, img in enumerate(image_elements[:3]):
                     img_url = await img.get_attribute("src")
                     filename = sanitize_filename(f"{url.split('/')[-2]}_{idx}.jpg")
                     file_path = await download_file(img_url, filename)
-                    print(f"✅ Downloaded image {idx + 1}: {file_path}")
+                    print(f"✅  Downloaded to: {file_path}")
+
         elif ig_type == "profile":
             parsed = urlparse(url)
             username = parsed.path.strip("/").split("/")[-1]
             profile_url = f"https://www.instagram.com/{username}/"
-
             await page.goto(profile_url)
             await page.wait_for_timeout(5000)
 
-            profile_pic_url = None
+            # Profile Picture
             pic_elem = await page.query_selector("img[data-testid='user-avatar']")
             if not pic_elem:
                 imgs = await page.query_selector_all("img")
@@ -125,12 +131,12 @@ async def scrape_instagram(url: str):
                         break
             if pic_elem:
                 profile_pic_url = await pic_elem.get_attribute("src")
-                pic_path = await download_file(profile_pic_url, f"{username}_profile.jpg")
-                print("✅ Profile Pic:", pic_path)
+                path = await download_file(profile_pic_url, f"{username}_profile.jpg")
+                print(f"✅ Profile picture saved: {path}")
 
+            # Bio + Stats
             bio_elem = await page.query_selector("div.-vDIg span")
             bio = await bio_elem.inner_text() if bio_elem else "N/A"
-
             stats = await page.query_selector_all("ul li span span")
             posts = await stats[0].inner_text() if len(stats) > 0 else "N/A"
             followers = await stats[1].get_attribute("title") if len(stats) > 1 else "N/A"
@@ -153,4 +159,4 @@ if __name__ == "__main__":
         print("❌ Invalid Instagram URL.")
     else:
         asyncio.run(scrape_instagram(input_url))
-      
+        
