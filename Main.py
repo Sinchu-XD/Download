@@ -27,7 +27,7 @@ app = Client("social_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_toke
 COOKIE_FILE = "ig_cookies.json"
 
 tag_processes: Dict[int, bool] = {}
-SOCIAL_URL_PATTERN = r"(https?:\/\/[^\s]+)"
+HTTPS_URL_PATTERN = r"(https?:\/\/[^\s]+)"
 TERABOX_URL_PATTERN = r"(https?:\/\/(?:www\.)?teraboxlink\.com\/[\w\/]+)"
 
 async def is_admin(client, chat_id, user_id):
@@ -39,22 +39,27 @@ async def download_media(message: Message, url: str):
     msg = await message.reply("🔍 Fetching media, please wait...")
 
     try:
-        cookies_path = "cookies/cookies.txt"
-        if not os.path.exists(cookies_path):
-            await msg.edit("❌ Cookie file not found!")
-            return
+        download_dir = "downloads"
+        os.makedirs(download_dir, exist_ok=True)
 
         ydl_opts = {
-            'outtmpl': 'downloads/%(title).80s.%(ext)s',
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': os.path.join(download_dir, '%(title).80s.%(ext)s'),
+            'format': 'bestvideo+bestaudio/best',
             'merge_output_format': 'mp4',
             'quiet': True,
-            'cookiefile': cookies_path,
+            # If you want to support cookies for sites that require login, add cookiefile path here
+            # 'cookiefile': 'cookies/cookies.txt',
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info)
+
+            # Fix filename to merged mp4 if merging happened
+            if 'requested_downloads' in info:
+                exts = [f['ext'] for f in info['requested_downloads']]
+                if 'mp4' in exts:
+                    file_path = file_path.rsplit('.', 1)[0] + '.mp4'
 
         await message.reply_video(file_path, caption=f"📥 Downloaded from:\n{url}")
         await msg.delete()
@@ -63,10 +68,12 @@ async def download_media(message: Message, url: str):
     except Exception as e:
         await msg.edit(f"❌ Failed:\n`{str(e)}`")
 
-@app.on_message(filters.regex(SOCIAL_URL_PATTERN))
+@app.on_message(filters.regex(HTTPS_URL_PATTERN))
 async def handle_download(_, message: Message):
-    url = re.findall(SOCIAL_URL_PATTERN, message.text)[0]
-    await download_media(message, url)
+    match = re.search(HTTPS_URL_PATTERN, message.text)
+    if match:
+        url = match.group(1)
+        await download_media(message, url)
     
 
 @app.on_message(filters.private & filters.regex(TERABOX_URL_PATTERN))
